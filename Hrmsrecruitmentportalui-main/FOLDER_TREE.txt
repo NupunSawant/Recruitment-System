@@ -1,0 +1,197 @@
+HRMS Recruitment Portal - Complete Folder Structure
+====================================================
+
+Root Files:
+├── STRUCTURE.md                    # Architecture documentation
+├── DEVELOPER_GUIDE.md              # Developer onboarding
+├── MIGRATION_CHECKLIST.md          # Migration tracking
+├── QUICK_REFERENCE.md              # Code patterns cheat sheet
+├── PROJECT_SUMMARY.md              # Project overview
+└── FOLDER_TREE.txt                 # This file
+
+src/
+├── App.tsx                         # ✅ Main app with Redux + MUI providers
+├── store.ts                        # ✅ Redux store configuration
+│
+├── theme/
+│   └── theme.ts                    # ✅ MUI enterprise theme (calm colors, Inter font)
+│
+├── Routes/
+│   └── router.tsx                  # ✅ React Router Data mode configuration
+│
+├── pages/                          # Feature-based page organization
+│   │
+│   ├── Authentication/             # Auth module
+│   │   ├── Login/                  # ✅ MIGRATED
+│   │   │   ├── index.tsx           # Login page component
+│   │   │   └── validationSchema.ts # Yup validation
+│   │   ├── Login.tsx               # Re-export for router
+│   │   └── ForgotPassword.tsx      # ✅ MIGRATED - Password reset
+│   │
+│   ├── Dashboard/                  # Dashboard module
+│   │   ├── index.tsx               # ⏳ STUB - Dashboard with stats
+│   │   └── Dashboard.tsx           # Re-export
+│   │
+│   └── Recruitment/                # Main Recruitment module
+│       │
+│       ├── Candidates/             # Candidates sub-module
+│       │   ├── CandidatesComplete.tsx        # ⏳ STUB - Main list view
+│       │   ├── CandidatesWorkflowDemo.tsx    # ⏳ STUB - Workflow demo
+│       │   └── validationSchema.ts           # ✅ NEW - Form validations
+│       │
+│       ├── Pipeline/               # Pipeline sub-module
+│       │   └── PipelineComplete.tsx          # ⏳ STUB - Kanban view
+│       │
+│       ├── JobOpenings/            # Job Openings sub-module
+│       │   ├── index.tsx                     # ⏳ STUB - Jobs list
+│       │   └── validationSchema.ts           # ✅ NEW
+│       │   └── JobOpenings.tsx               # Re-export
+│       │
+│       ├── UsersPermissions/       # Users sub-module
+│       │   ├── UsersEnhanced.tsx             # ⏳ STUB - Users management
+│       │   └── validationSchema.ts           # ✅ NEW
+│       │
+│       ├── EmailTemplates/         # Email Templates sub-module
+│       │   ├── index.tsx                     # ⏳ STUB - Template manager
+│       │   ├── validationSchema.ts           # ✅ NEW
+│       │   └── EmailTemplates.tsx            # Re-export
+│       │
+│       ├── Settings/               # Settings sub-module
+│       │   ├── index.tsx                     # ⏳ STUB - App settings
+│       │   ├── validationSchema.ts           # ✅ NEW
+│       │   └── Settings.tsx                  # Re-export
+│       │
+│       ├── Interviewer/            # Interviewer Portal
+│       │   └── InterviewerPortal.tsx         # ⏳ STUB - Interviewer view
+│       │
+│       └── Resume/                 # Resume Viewer
+│           └── ResumeViewer.tsx              # ⏳ STUB - Resume display
+│
+├── components/                     # Reusable components
+│   │
+│   ├── common/                     # Common UI components
+│   │   ├── LoadingSpinner.tsx      # ✅ NEW - MUI loading indicator
+│   │   ├── EmptyState.tsx          # ✅ NEW - Empty state placeholder
+│   │   ├── PageHeader.tsx          # ✅ NEW - Page header with breadcrumbs
+│   │   └── index.ts                # Barrel export
+│   │
+│   ├── ui/                         # UI library (shadcn-based)
+│   │   ├── button.ts               # ✅ Re-export from app/components/ui
+│   │   ├── input.ts                # ✅ Re-export
+│   │   ├── label.ts                # ✅ Re-export
+│   │   ├── select.ts               # ✅ Re-export
+│   │   └── index.ts                # ✅ Barrel exports
+│   │
+│   └── Recruitment/                # Feature-specific components (to be created)
+│       ├── Candidates/
+│       │   ├── CandidateTable/
+│       │   ├── CandidateFilters/
+│       │   ├── BulkActionsToolbar/
+│       │   └── CandidateDetailModal/
+│       ├── Pipeline/
+│       └── ...
+│
+├── layout/                         # Layout components
+│   └── LayoutEnhanced.tsx          # ✅ MIGRATED - Main layout with sidebar
+│
+├── slices/                         # Redux Toolkit slices
+│   │
+│   ├── Authentication/
+│   │   └── authSlice.ts            # ✅ NEW - Auth state management
+│   │
+│   ├── Dashboard/
+│   │   └── dashboardSlice.ts       # ✅ NEW - Dashboard state
+│   │
+│   └── Recruitment/
+│       ├── Candidates/
+│       │   └── candidatesSlice.ts            # ✅ NEW - Candidates state
+│       ├── JobOpenings/
+│       │   └── jobOpeningsSlice.ts           # ✅ NEW - Jobs state
+│       ├── Pipeline/
+│       │   └── pipelineSlice.ts              # ✅ NEW - Pipeline state
+│       ├── UsersPermissions/
+│       │   └── usersPermissionsSlice.ts      # ✅ NEW - Users state
+│       ├── EmailTemplates/
+│       │   └── emailTemplatesSlice.ts        # ✅ NEW - Templates state
+│       └── Settings/
+│           └── settingsSlice.ts              # ✅ NEW - Settings state
+│
+├── api/                            # API client & services
+│   ├── client.ts                   # ✅ NEW - Generic REST client
+│   ├── auth.ts                     # ✅ NEW - Auth API functions
+│   ├── candidates.ts               # ✅ NEW - Candidates CRUD API
+│   └── index.ts                    # ✅ Barrel export
+│
+├── hooks/                          # Custom React hooks
+│   ├── useRedux.ts                 # ✅ NEW - Typed Redux hooks
+│   ├── useAuth.ts                  # ✅ NEW - Auth hook
+│   └── index.ts                    # ✅ Barrel export
+│
+├── context/                        # React Context providers
+│   ├── AuthContext.tsx             # ✅ NEW - Auth context provider
+│   └── index.ts                    # ✅ Barrel export
+│
+├── helpers/                        # Business logic helpers
+│   ├── permissions.ts              # ✅ NEW - Role-based permission logic
+│   ├── validators.ts               # ✅ NEW - Custom validation helpers
+│   └── index.ts                    # ✅ Barrel export
+│
+├── utils/                          # Pure utility functions
+│   ├── dateUtils.ts                # ✅ NEW - Date formatting functions
+│   ├── stringUtils.ts              # ✅ NEW - String manipulation
+│   └── index.ts                    # ✅ Barrel export
+│
+├── Constants/                      # Application constants
+│   ├── candidateStages.ts          # ✅ NEW - Stage definitions & colors
+│   ├── roles.ts                    # ✅ NEW - Roles & permissions mapping
+│   └── index.ts                    # ✅ Barrel export
+│
+├── config/                         # Configuration
+│   ├── api.ts                      # ✅ NEW - API URLs & endpoints
+│   └── index.ts                    # ✅ Barrel export
+│
+├── common/                         # Common types & interfaces
+│   ├── types.ts                    # ✅ NEW - Shared TypeScript types
+│   └── index.ts                    # ✅ Barrel export
+│
+├── app/                            # ⚠️ LEGACY FOLDER - TO BE REMOVED
+│   ├── App.tsx                     # ⚠️ Replaced by /src/App.tsx
+│   ├── pages/                      # ⚠️ Being migrated to /src/pages
+│   ├── components/                 # ⚠️ To be organized into /src/components
+│   ├── routes.tsx                  # ⚠️ Replaced by /src/Routes/router.tsx
+│   └── data/                       # ⚠️ To be moved to appropriate locations
+│
+└── styles/                         # Tailwind CSS (still in use)
+    ├── fonts.css
+    └── theme.css
+
+Legend:
+✅ NEW       - Newly created file/folder
+✅ MIGRATED  - Fully migrated from old structure
+⏳ STUB      - Placeholder with re-export (to be migrated)
+⚠️ LEGACY    - Old structure (to be removed after migration)
+
+Key Statistics:
+===============
+✅ Total new files created:     50+
+✅ Redux slices configured:     8
+✅ Validation schemas created:  6
+✅ API modules created:         3
+✅ Custom hooks created:        2
+✅ Common components created:   3
+✅ Utility modules created:     4
+✅ Documentation files:         5
+
+Migration Progress:
+==================
+Phase 1-3 (Core Setup):    100% ✅
+Phase 4+ (Page Migration):   0% ⏳
+
+Next Actions:
+=============
+1. Test application boots successfully
+2. Verify login/logout flow works
+3. Begin Dashboard migration
+4. Extract Candidates components
+5. Continue with remaining modules
+

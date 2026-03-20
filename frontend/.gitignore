@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+# This is one of the most important exclusions to prevent bloating your repository.
+
+# Build artifacts
+build/
+dist/
+target/
+*.log
+# These files are typically generated during the build process and don't need to be tracked.
+
+# Environment files
+.env
+.env.local
+.env.*.local
+# **NEVER** commit sensitive information like API keys or passwords.
+
+# IDE and OS specific files
+.DS_Store # macOS
+.vscode/ # VS Code specific files
+*.suo    # Visual Studio
+*.user   # Visual Studio
+*.bak    # Backup files
+Thumbs.db # Windows
+# These files are specific to a developer's local environment and should not be shared.
+
+# Project-specific temporary files
+temp/
+tmp/
