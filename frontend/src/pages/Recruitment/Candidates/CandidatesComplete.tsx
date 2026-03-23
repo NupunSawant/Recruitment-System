@@ -1,9 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import {
-	candidates as initialCandidates,
-	Candidate,
-	jobOpenings,
-} from "../../../data/mockData";
+import { Candidate, jobOpenings } from "../../../data/mockData";
 import { CandidatesHeader } from "../../components/Candidates/CandidatesHeader";
 import { CandidatesBulkActions } from "../../components/Candidates/CandidatesBulkActions";
 import { CandidatesTable } from "../../components/Candidates/CandidatesTable";
@@ -11,6 +7,12 @@ import { AddCandidateDrawer } from "../../components/Candidates/AddCandidateDraw
 import { ResumeViewerScreen } from "../../components/Candidates/ResumeViewerScreen";
 import { CandidateDetailView } from "../../components/Candidates/CandidateDetailView";
 import { CandidateModals } from "../../components/Candidates/CandidateModals";
+import { useAppDispatch, useAppSelector } from "../../../hooks/useRedux";
+import {
+	fetchCandidates,
+	updateCandidateThunk,
+	createCandidateThunk,
+} from "../../../slices/Recruitment/Candidates/candidatesThunks";
 
 type RoleTab = "All" | "MERN" | "QA" | "Flutter" | "UI/UX";
 type QuickFilter =
@@ -23,12 +25,18 @@ type SourceType = "Direct" | "Referral" | "Job Portal" | "Recruitment Agency";
 type ViewState = "list" | "detail" | "resume-viewer";
 
 export function CandidatesComplete() {
+	const dispatch = useAppDispatch();
+
+	const candidatesState = useAppSelector((state) => state.candidates);
+	const candidates: Candidate[] = candidatesState.items || [];
+	const loading = candidatesState.loading;
+	const pagination = candidatesState.pagination;
+
 	const [viewState, setViewState] = useState<ViewState>("list");
 	const [searchQuery, setSearchQuery] = useState("");
 	const [roleTab, setRoleTab] = useState<RoleTab>("All");
 	const [quickFilters, setQuickFilters] = useState<Set<QuickFilter>>(new Set());
 	const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-	const [candidates, setCandidates] = useState(initialCandidates);
 	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 	const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(
 		null,
@@ -102,6 +110,57 @@ export function CandidatesComplete() {
 	const [bulkInterviewTime, setBulkInterviewTime] = useState("");
 	const [bulkInterviewType, setBulkInterviewType] = useState("Screening");
 
+	const buildFetchParams = (pageOverride?: number) => ({
+		search: searchQuery || undefined,
+		role: roleTab !== "All" ? roleTab : undefined,
+		stage: stageFilter !== "all" ? stageFilter : undefined,
+		candidateType:
+			quickFilters.size === 1 ? Array.from(quickFilters)[0] : undefined,
+		page: pageOverride ?? pagination.page ?? 1,
+		limit: pagination.limit ?? 10,
+	});
+
+	useEffect(() => {
+		dispatch(fetchCandidates(buildFetchParams()));
+	}, [
+		dispatch,
+		searchQuery,
+		roleTab,
+		stageFilter,
+		noticePeriodFilter,
+		quickFilters,
+		pagination.page,
+		pagination.limit,
+	]);
+
+	useEffect(() => {
+		if (showScheduleModal && modalCandidate) {
+			const matchingJob = jobOpenings.find(
+				(job) =>
+					modalCandidate.role.toLowerCase().includes(job.role.toLowerCase()) ||
+					job.role.toLowerCase().includes(modalCandidate.role.toLowerCase()),
+			);
+
+			if (matchingJob && matchingJob.googleMeetLink) {
+				setMeetingLink(matchingJob.googleMeetLink);
+			} else {
+				setMeetingLink("");
+			}
+		}
+	}, [showScheduleModal, modalCandidate]);
+
+	useEffect(() => {
+		if (!selectedCandidate) return;
+
+		const latestSelectedCandidate = candidates.find(
+			(candidate) => candidate.id === selectedCandidate.id,
+		);
+
+		if (latestSelectedCandidate) {
+			setSelectedCandidate(latestSelectedCandidate);
+		}
+	}, [candidates, selectedCandidate?.id]);
+
 	const toggleQuickFilter = (filter: QuickFilter) => {
 		const newFilters = new Set(quickFilters);
 		if (newFilters.has(filter)) {
@@ -121,15 +180,14 @@ export function CandidatesComplete() {
 		setEditValue(currentValue);
 	};
 
-	const saveEdit = (candidateId: string, field: string) => {
-		setCandidates((prev) =>
-			prev.map((c) => {
-				if (c.id === candidateId) {
-					return { ...c, [field]: editValue };
-				}
-				return c;
+	const saveEdit = async (candidateId: string, field: string) => {
+		await dispatch(
+			updateCandidateThunk({
+				id: candidateId,
+				data: { [field]: editValue },
 			}),
-		);
+		).unwrap();
+
 		setEditingCell(null);
 		setEditValue("");
 	};
@@ -139,28 +197,26 @@ export function CandidatesComplete() {
 		setEditValue("");
 	};
 
-	const updateCandidateField = (
+	const updateCandidateField = async (
 		candidateId: string,
 		field: string,
 		value: any,
 	) => {
-		setCandidates((prev) =>
-			prev.map((c) => {
-				if (c.id === candidateId) {
-					return { ...c, [field]: value };
-				}
-				return c;
+		await dispatch(
+			updateCandidateThunk({
+				id: candidateId,
+				data: { [field]: value },
 			}),
-		);
+		).unwrap();
 	};
 
 	const filteredCandidates = useMemo(() => {
 		return candidates.filter((candidate) => {
 			const matchesSearch =
-				candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				candidate.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				candidate.phone.includes(searchQuery) ||
-				candidate.email.toLowerCase().includes(searchQuery.toLowerCase());
+				candidate.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				candidate.role?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				candidate.phone?.includes(searchQuery) ||
+				candidate.email?.toLowerCase().includes(searchQuery.toLowerCase());
 
 			const matchesRole = roleTab === "All" || candidate.role === roleTab;
 
@@ -200,22 +256,6 @@ export function CandidatesComplete() {
 		noticePeriodFilter,
 	]);
 
-	useEffect(() => {
-		if (showScheduleModal && modalCandidate) {
-			const matchingJob = jobOpenings.find(
-				(job) =>
-					modalCandidate.role.toLowerCase().includes(job.role.toLowerCase()) ||
-					job.role.toLowerCase().includes(modalCandidate.role.toLowerCase()),
-			);
-
-			if (matchingJob && matchingJob.googleMeetLink) {
-				setMeetingLink(matchingJob.googleMeetLink);
-			} else {
-				setMeetingLink("");
-			}
-		}
-	}, [showScheduleModal, modalCandidate]);
-
 	const handleSelectAll = (checked: boolean) => {
 		if (checked) {
 			setSelectedIds(new Set(filteredCandidates.map((c) => c.id)));
@@ -232,29 +272,6 @@ export function CandidatesComplete() {
 			newSelected.delete(id);
 		}
 		setSelectedIds(newSelected);
-	};
-
-	const addActivityLog = (
-		candidateId: string,
-		action: string,
-		by: string = "Current User",
-	) => {
-		setCandidates((prev) =>
-			prev.map((c) => {
-				if (c.id === candidateId) {
-					const newLog = {
-						date: new Date().toISOString().split("T")[0],
-						action,
-						by,
-					};
-					return {
-						...c,
-						activityLog: [newLog, ...(c.activityLog || [])],
-					};
-				}
-				return c;
-			}),
-		);
 	};
 
 	const getStageColor = (stage: string) => {
@@ -285,9 +302,9 @@ export function CandidatesComplete() {
 		}
 	};
 
-	const handleAddCandidate = () => {
+	const handleAddCandidate = async () => {
 		const emailExists = candidates.some(
-			(c) => c.email.toLowerCase() === newCandidate.email.toLowerCase(),
+			(c) => c.email?.toLowerCase() === newCandidate.email.toLowerCase(),
 		);
 		if (emailExists) {
 			alert(
@@ -314,8 +331,7 @@ export function CandidatesComplete() {
 			}
 		}
 
-		const candidate: Candidate = {
-			id: String(candidates.length + 1),
+		const candidatePayload: Partial<Candidate> = {
 			name: newCandidate.fullName,
 			email: newCandidate.email,
 			phone: newCandidate.phone,
@@ -345,98 +361,71 @@ export function CandidatesComplete() {
 			],
 		};
 
-		setCandidates([...candidates, candidate]);
-		setShowAddCandidateDrawer(false);
+		try {
+			await dispatch(createCandidateThunk(candidatePayload)).unwrap();
+			await dispatch(fetchCandidates(buildFetchParams(1))).unwrap();
 
-		setNewCandidate({
-			fullName: "",
-			email: "",
-			phone: "",
-			role: "",
-			candidateType: "Experienced",
-			totalExperience: "",
-			relevantExperience: "",
-			noticePeriod: "",
-			currentCTC: "",
-			expectedCTC: "",
-			location: "",
-			education: "",
-			sourceType: "",
-			recruitmentCompanyName: "",
-			contactPersonName: "",
-			contactNumber: "",
-			referrerName: "",
-			referrerContact: "",
-			portalName: "",
-		});
-		setUploadedFile(null);
-	};
-
-	const handleMoveStage = () => {
-		if (!modalCandidate) return;
-
-		setCandidates((prev) =>
-			prev.map((candidate) =>
-				candidate.id === modalCandidate.id
-					? { ...candidate, stage: newStage }
-					: candidate,
-			),
-		);
-
-		addActivityLog(modalCandidate.id, `Stage changed to ${newStage}`);
-		setShowMoveStageModal(false);
-		setModalCandidate(null);
-
-		if (selectedCandidate?.id === modalCandidate.id) {
-			setSelectedCandidate((prev) =>
-				prev ? { ...prev, stage: newStage } : prev,
-			);
+			setShowAddCandidateDrawer(false);
+			setNewCandidate({
+				fullName: "",
+				email: "",
+				phone: "",
+				role: "",
+				candidateType: "Experienced",
+				totalExperience: "",
+				relevantExperience: "",
+				noticePeriod: "",
+				currentCTC: "",
+				expectedCTC: "",
+				location: "",
+				education: "",
+				sourceType: "",
+				recruitmentCompanyName: "",
+				contactPersonName: "",
+				contactNumber: "",
+				referrerName: "",
+				referrerContact: "",
+				portalName: "",
+			});
+			setUploadedFile(null);
+		} catch (error) {
+			console.error("Failed to create candidate:", error);
 		}
 	};
 
-	const handleAssignInterviewer = () => {
+	const handleMoveStage = async () => {
+		if (!modalCandidate) return;
+
+		await dispatch(
+			updateCandidateThunk({
+				id: modalCandidate.id,
+				data: { stage: newStage },
+			}),
+		).unwrap();
+
+		setShowMoveStageModal(false);
+		setModalCandidate(null);
+	};
+
+	const handleAssignInterviewer = async () => {
 		if (!modalCandidate || selectedInterviewer === "none") return;
 
-		setCandidates((prev) =>
-			prev.map((candidate) =>
-				candidate.id === modalCandidate.id
-					? {
-							...candidate,
-							interviewer: selectedInterviewer,
-						}
-					: candidate,
-			),
-		);
-
-		addActivityLog(
-			modalCandidate.id,
-			`Interviewer assigned: ${selectedInterviewer}${interviewRound ? ` (${interviewRound})` : ""}${interviewNotes ? ` - ${interviewNotes}` : ""}`,
-		);
+		await dispatch(
+			updateCandidateThunk({
+				id: modalCandidate.id,
+				data: { interviewer: selectedInterviewer },
+			}),
+		).unwrap();
 
 		setShowAssignModal(false);
 		setModalCandidate(null);
 		setSelectedInterviewer("none");
 		setInterviewRound("Screening");
 		setInterviewNotes("");
-
-		if (selectedCandidate?.id === modalCandidate.id) {
-			setSelectedCandidate((prev) =>
-				prev
-					? {
-							...prev,
-							interviewer: selectedInterviewer,
-						}
-					: prev,
-			);
-		}
 	};
 
 	const handleScheduleInterview = () => {
 		if (!modalCandidate || !interviewDate || !interviewTime) return;
-
-		const interviewText = `Interview scheduled: ${interviewType} on ${interviewDate} at ${interviewTime}${selectedInterviewer && selectedInterviewer !== "none" ? ` with ${selectedInterviewer}` : ""}${meetingLink ? ` (${meetingLink})` : ""}`;
-
-		addActivityLog(modalCandidate.id, interviewText);
 
 		setShowScheduleModal(false);
 		setModalCandidate(null);
@@ -447,93 +436,73 @@ export function CandidatesComplete() {
 		setSelectedInterviewer("none");
 	};
 
-	const handleRejectCandidate = () => {
+	const handleRejectCandidate = async () => {
 		if (!modalCandidate) return;
 
-		setCandidates((prev) =>
-			prev.map((candidate) =>
-				candidate.id === modalCandidate.id
-					? { ...candidate, stage: "Rejected" }
-					: candidate,
-			),
-		);
-
-		addActivityLog(
-			modalCandidate.id,
-			rejectionReason
-				? `Candidate rejected: ${rejectionReason}`
-				: "Candidate rejected",
-		);
+		await dispatch(
+			updateCandidateThunk({
+				id: modalCandidate.id,
+				data: { stage: "Rejected" },
+			}),
+		).unwrap();
 
 		setShowRejectModal(false);
 		setModalCandidate(null);
 		setRejectionReason("");
-
-		if (selectedCandidate?.id === modalCandidate.id) {
-			setSelectedCandidate((prev) =>
-				prev ? { ...prev, stage: "Rejected" } : prev,
-			);
-		}
 	};
 
-	const handleBulkMoveStage = () => {
-		setCandidates((prev) =>
-			prev.map((candidate) =>
-				selectedIds.has(candidate.id)
-					? { ...candidate, stage: bulkStage }
-					: candidate,
+	const handleBulkMoveStage = async () => {
+		await Promise.all(
+			Array.from(selectedIds).map((id) =>
+				dispatch(
+					updateCandidateThunk({ id, data: { stage: bulkStage } }),
+				).unwrap(),
 			),
 		);
-
-		selectedIds.forEach((id) => {
-			addActivityLog(id, `Bulk stage changed to ${bulkStage}`);
-		});
 
 		setShowBulkMoveStageModal(false);
 		setSelectedIds(new Set());
 	};
 
-	const handleBulkAssignInterviewer = () => {
+	const handleBulkAssignInterviewer = async () => {
 		if (!bulkInterviewer) return;
 
-		setCandidates((prev) =>
-			prev.map((candidate) =>
-				selectedIds.has(candidate.id)
-					? { ...candidate, interviewer: bulkInterviewer }
-					: candidate,
+		await Promise.all(
+			Array.from(selectedIds).map((id) =>
+				dispatch(
+					updateCandidateThunk({
+						id,
+						data: { interviewer: bulkInterviewer },
+					}),
+				).unwrap(),
 			),
 		);
-
-		selectedIds.forEach((id) => {
-			addActivityLog(id, `Bulk interviewer assigned: ${bulkInterviewer}`);
-		});
 
 		setShowBulkAssignModal(false);
 		setBulkInterviewer("");
 		setSelectedIds(new Set());
 	};
 
-	const handleBulkAddTag = () => {
+	const handleBulkAddTag = async () => {
 		const trimmedTag = bulkTag.trim();
 		if (!trimmedTag) return;
 
-		setCandidates((prev) =>
-			prev.map((candidate) => {
-				if (!selectedIds.has(candidate.id)) return candidate;
+		await Promise.all(
+			Array.from(selectedIds).map((id) => {
+				const candidate = candidates.find((c) => c.id === id);
+				if (!candidate) return Promise.resolve();
 
 				const currentTags = candidate.tags || [];
-				if (currentTags.includes(trimmedTag)) return candidate;
+				if (currentTags.includes(trimmedTag)) return Promise.resolve();
 
-				return {
-					...candidate,
-					tags: [...currentTags, trimmedTag],
-				};
+				return dispatch(
+					updateCandidateThunk({
+						id,
+						data: { tags: [...currentTags, trimmedTag] },
+					}),
+				).unwrap();
 			}),
 		);
-
-		selectedIds.forEach((id) => {
-			addActivityLog(id, `Bulk tag added: ${trimmedTag}`);
-		});
 
 		setShowBulkTagModal(false);
 		setBulkTag("");
@@ -543,13 +512,6 @@ export function CandidatesComplete() {
 	const handleBulkScheduleInterview = () => {
 		if (!bulkInterviewDate || !bulkInterviewTime) return;
 
-		selectedIds.forEach((id) => {
-			addActivityLog(
-				id,
-				`Bulk interview scheduled: ${bulkInterviewType} on ${bulkInterviewDate} at ${bulkInterviewTime}`,
-			);
-		});
-
 		setShowBulkScheduleModal(false);
 		setBulkInterviewDate("");
 		setBulkInterviewTime("");
@@ -557,17 +519,14 @@ export function CandidatesComplete() {
 		setSelectedIds(new Set());
 	};
 
-	const handleBulkReject = () => {
-		const updated = candidates.map((c) =>
-			selectedIds.has(c.id)
-				? { ...c, stage: "Rejected" as Candidate["stage"] }
-				: c,
+	const handleBulkReject = async () => {
+		await Promise.all(
+			Array.from(selectedIds).map((id) =>
+				dispatch(
+					updateCandidateThunk({ id, data: { stage: "Rejected" } }),
+				).unwrap(),
+			),
 		);
-		setCandidates(updated);
-
-		selectedIds.forEach((id) => {
-			addActivityLog(id, "Bulk rejection");
-		});
 
 		setSelectedIds(new Set());
 	};
@@ -575,18 +534,6 @@ export function CandidatesComplete() {
 	const allSelected =
 		filteredCandidates.length > 0 &&
 		selectedIds.size === filteredCandidates.length;
-
-	useEffect(() => {
-		if (!selectedCandidate) return;
-
-		const latestSelectedCandidate = candidates.find(
-			(candidate) => candidate.id === selectedCandidate.id,
-		);
-
-		if (latestSelectedCandidate) {
-			setSelectedCandidate(latestSelectedCandidate);
-		}
-	}, [candidates, selectedCandidate?.id]);
 
 	if (viewState === "resume-viewer" && selectedCandidate) {
 		return (
@@ -608,12 +555,11 @@ export function CandidatesComplete() {
 				onViewResume={() => setViewState("resume-viewer")}
 				detailTab={detailTab}
 				setDetailTab={setDetailTab}
-				candidates={candidates}
-				setCandidates={setCandidates}
-				addActivityLog={addActivityLog}
 			/>
 		);
 	}
+	console.log("Redux candidates items:", candidatesState.items);
+	console.log("Candidates used in table:", candidates);
 
 	return (
 		<div className='h-full flex flex-col bg-white'>
@@ -645,32 +591,38 @@ export function CandidatesComplete() {
 				onClear={() => setSelectedIds(new Set())}
 			/>
 
-			<CandidatesTable
-				filteredCandidates={filteredCandidates}
-				selectedIds={selectedIds}
-				allSelected={allSelected}
-				handleSelectAll={handleSelectAll}
-				handleSelectOne={handleSelectOne}
-				setSelectedCandidate={setSelectedCandidate}
-				setViewState={setViewState}
-				setDetailTab={setDetailTab}
-				updateCandidateField={updateCandidateField}
-				editingCell={editingCell}
-				editValue={editValue}
-				setEditValue={setEditValue}
-				startEditing={startEditing}
-				saveEdit={saveEdit}
-				cancelEdit={cancelEdit}
-				getStageColor={getStageColor}
-				activeDropdownRow={activeDropdownRow}
-				setActiveDropdownRow={setActiveDropdownRow}
-				setModalCandidate={setModalCandidate}
-				setNewStage={setNewStage}
-				setShowMoveStageModal={setShowMoveStageModal}
-				setShowAssignModal={setShowAssignModal}
-				setShowScheduleModal={setShowScheduleModal}
-				setShowRejectModal={setShowRejectModal}
-			/>
+			{loading ? (
+				<div className='flex-1 flex items-center justify-center text-sm text-neutral-500'>
+					Loading candidates...
+				</div>
+			) : (
+				<CandidatesTable
+					filteredCandidates={filteredCandidates}
+					selectedIds={selectedIds}
+					allSelected={allSelected}
+					handleSelectAll={handleSelectAll}
+					handleSelectOne={handleSelectOne}
+					setSelectedCandidate={setSelectedCandidate}
+					setViewState={setViewState}
+					setDetailTab={setDetailTab}
+					updateCandidateField={updateCandidateField}
+					editingCell={editingCell}
+					editValue={editValue}
+					setEditValue={setEditValue}
+					startEditing={startEditing}
+					saveEdit={saveEdit}
+					cancelEdit={cancelEdit}
+					getStageColor={getStageColor}
+					activeDropdownRow={activeDropdownRow}
+					setActiveDropdownRow={setActiveDropdownRow}
+					setModalCandidate={setModalCandidate}
+					setNewStage={setNewStage}
+					setShowMoveStageModal={setShowMoveStageModal}
+					setShowAssignModal={setShowAssignModal}
+					setShowScheduleModal={setShowScheduleModal}
+					setShowRejectModal={setShowRejectModal}
+				/>
+			)}
 
 			<AddCandidateDrawer
 				open={showAddCandidateDrawer}

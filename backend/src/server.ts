@@ -12,19 +12,18 @@ import router from "./routes";
 
 const app = express();
 
+app.use(
+	cors({
+		origin: env.CORS_ORIGIN,
+		credentials: true,
+	}),
+);
+
 app.use(express.json());
 app.use(cookieParser());
 app.use(helmet());
 app.use(compression());
 app.use(morgan("dev"));
-app.use("/api", router);
-
-app.use(
-	cors({
-		origin: env.CORS_ORIGIN,
-		credentials: true,
-	})
-);
 
 app.get("/", (_req, res) => {
 	res.status(200).json({
@@ -40,7 +39,7 @@ app.get("/health", (_req, res) => {
 	});
 });
 
-
+app.use("/api", router);
 
 app.use((_req, res) => {
 	res.status(404).json({
@@ -49,22 +48,29 @@ app.use((_req, res) => {
 	});
 });
 
-app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-	if (error instanceof ZodError) {
-		return res.status(400).json({
+app.use(
+	(
+		error: any,
+		_req: express.Request,
+		res: express.Response,
+		_next: express.NextFunction,
+	) => {
+		if (error instanceof ZodError) {
+			return res.status(400).json({
+				success: false,
+				message: "Validation failed",
+				errors: error.flatten(),
+			});
+		}
+
+		const statusCode = error.statusCode || 500;
+
+		return res.status(statusCode).json({
 			success: false,
-			message: "Validation failed",
-			errors: error.flatten(),
+			message: error.message || "Internal server error",
 		});
-	}
-
-	const statusCode = error.statusCode || 500;
-
-	return res.status(statusCode).json({
-		success: false,
-		message: error.message || "Internal server error",
-	});
-});
+	},
+);
 
 (async () => {
 	await connectDB();

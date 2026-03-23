@@ -21,7 +21,6 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Textarea } from "../../../components/ui/textarea";
-
 import {
 	Select,
 	SelectContent,
@@ -30,6 +29,9 @@ import {
 	SelectValue,
 } from "../../../components/ui/select";
 import { RichTextEditor } from "../../../components/RichTextEditor";
+import { useAppDispatch } from "../../../hooks/useRedux";
+import { updateCandidateThunk } from "../../../slices/Recruitment/Candidates/candidatesThunks";
+import { getCandidateById } from "../../../slices/Recruitment/Candidates/candidatesThunks";
 
 interface CandidateDetailViewProps {
 	candidate: Candidate;
@@ -37,13 +39,11 @@ interface CandidateDetailViewProps {
 	onViewResume: () => void;
 	detailTab: string;
 	setDetailTab: (tab: string) => void;
-	candidates: Candidate[];
-	setCandidates: React.Dispatch<React.SetStateAction<Candidate[]>>;
-	addActivityLog: (id: string, action: string, by?: string) => void;
 }
 
 export function CandidateDetailView(props: CandidateDetailViewProps) {
 	const { candidate, onBack, onViewResume, detailTab, setDetailTab } = props;
+	const dispatch = useAppDispatch();
 
 	const stages: Candidate["stage"][] = [
 		"New",
@@ -55,7 +55,6 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 	const currentStageIndex = stages.indexOf(candidate.stage);
 
 	const resumeFileInputRef = useRef<HTMLInputElement | null>(null);
-	const [isReplacingResume, setIsReplacingResume] = useState(false);
 
 	const [showTagInput, setShowTagInput] = useState(false);
 	const [newTagValue, setNewTagValue] = useState("");
@@ -70,22 +69,36 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 		candidate.interviewer || "",
 	);
 
+	const updateCandidate = async (data: Partial<Candidate>) => {
+		await dispatch(
+			updateCandidateThunk({
+				id: candidate.id,
+				data,
+			}),
+		).unwrap();
+	};
+
+	const appendActivityLog = async (action: string, by = "Admin") => {
+		const currentLog = candidate.activityLog || [];
+		const newLog = {
+			date: new Date().toISOString().split("T")[0],
+			action,
+			by,
+		};
+
+		await updateCandidate({
+			activityLog: [newLog, ...currentLog],
+		});
+	};
+
 	const startEditing = (field: string, currentValue: string) => {
 		setEditingField(field);
 		setEditValue(currentValue || "");
 	};
 
-	const saveField = (field: keyof Candidate) => {
-		props.setCandidates((prev) =>
-			prev.map((c) =>
-				c.id === candidate.id ? { ...c, [field]: editValue } : c,
-			),
-		);
-		props.addActivityLog(
-			candidate.id,
-			`${field} updated to: ${editValue}`,
-			"Admin",
-		);
+	const saveField = async (field: keyof Candidate) => {
+		await updateCandidate({ [field]: editValue } as Partial<Candidate>);
+		await appendActivityLog(`${field} updated to: ${editValue}`, "Admin");
 		setEditingField(null);
 		setEditValue("");
 	};
@@ -95,117 +108,65 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 		setEditValue("");
 	};
 
-	const handleMoveStage = () => {
-		props.setCandidates((prev) =>
-			prev.map((c) => (c.id === candidate.id ? { ...c, stage: newStage } : c)),
-		);
-		props.addActivityLog(
-			candidate.id,
-			`Stage changed to: ${newStage}`,
-			"Admin",
-		);
+	const handleMoveStage = async () => {
+		await updateCandidate({ stage: newStage });
+		await appendActivityLog(`Stage changed to: ${newStage}`, "Admin");
 		setShowMoveStageModal(false);
 	};
 
-	const handleAssignInterviewer = () => {
+	const handleAssignInterviewer = async () => {
 		if (!newInterviewer) return;
 
-		props.setCandidates((prev) =>
-			prev.map((c) =>
-				c.id === candidate.id ? { ...c, interviewer: newInterviewer } : c,
-			),
-		);
-		props.addActivityLog(
-			candidate.id,
-			`Interviewer assigned: ${newInterviewer}`,
-			"Admin",
-		);
+		await updateCandidate({ interviewer: newInterviewer });
+		await appendActivityLog(`Interviewer assigned: ${newInterviewer}`, "Admin");
 		setShowAssignModal(false);
 	};
 
-	const addTag = () => {
+	const addTag = async () => {
 		if (!newTagValue.trim()) return;
 
-		props.setCandidates((prev) =>
-			prev.map((c) => {
-				if (c.id !== candidate.id) return c;
-				const currentTags = c.tags || [];
-				if (currentTags.includes(newTagValue.trim())) return c;
-				return { ...c, tags: [...currentTags, newTagValue.trim()] };
-			}),
-		);
+		const currentTags = candidate.tags || [];
+		if (currentTags.includes(newTagValue.trim())) return;
 
-		props.addActivityLog(
-			candidate.id,
-			`Tag added: ${newTagValue.trim()}`,
-			"Admin",
-		);
+		await updateCandidate({
+			tags: [...currentTags, newTagValue.trim()],
+		});
+		await appendActivityLog(`Tag added: ${newTagValue.trim()}`, "Admin");
 		setNewTagValue("");
 		setShowTagInput(false);
 	};
 
-	const removeTag = (tagToRemove: string) => {
-		props.setCandidates((prev) =>
-			prev.map((c) =>
-				c.id === candidate.id
-					? {
-							...c,
-							tags: (c.tags || []).filter((tag) => tag !== tagToRemove),
-						}
-					: c,
-			),
-		);
-
-		props.addActivityLog(candidate.id, `Tag removed: ${tagToRemove}`, "Admin");
+	const removeTag = async (tagToRemove: string) => {
+		await updateCandidate({
+			tags: (candidate.tags || []).filter((tag) => tag !== tagToRemove),
+		});
+		await appendActivityLog(`Tag removed: ${tagToRemove}`, "Admin");
 	};
 
-	const handleReplaceResume = (e: React.ChangeEvent<HTMLInputElement>) => {
+	const handleReplaceResume = async (
+		e: React.ChangeEvent<HTMLInputElement>,
+	) => {
 		const file = e.target.files?.[0];
 		if (!file || file.type !== "application/pdf") return;
 
-		props.setCandidates((prev) =>
-			prev.map((c) =>
-				c.id === candidate.id
-					? {
-							...c,
-							resumeFileName: file.name,
-							resumeUrl: URL.createObjectURL(file),
-						}
-					: c,
-			),
-		);
-
-		props.addActivityLog(
-			candidate.id,
-			`Resume replaced: ${file.name}`,
-			"Admin",
-		);
-		setIsReplacingResume(false);
+		await updateCandidate({
+			resumeFileName: file.name,
+			resumeUrl: URL.createObjectURL(file),
+		});
+		await appendActivityLog(`Resume replaced: ${file.name}`, "Admin");
 	};
 
-	// Move to next stage
-	const moveToNextStage = () => {
+	const moveToNextStage = async () => {
 		const currentIndex = stages.indexOf(candidate.stage);
 		if (currentIndex < stages.length - 1) {
 			const nextStage = stages[currentIndex + 1];
-			const updatedCandidates = props.candidates.map((c) =>
-				c.id === candidate.id ? { ...c, stage: nextStage } : c,
-			);
-			props.setCandidates(updatedCandidates);
-			props.addActivityLog(
-				candidate.id,
-				`Moved to ${nextStage} stage`,
-				"Admin",
-			);
+			await updateCandidate({ stage: nextStage });
+			await appendActivityLog(`Moved to ${nextStage} stage`, "Admin");
 		}
 	};
 
-	const latestCandidate =
-		props.candidates.find((c) => c.id === candidate.id) || candidate;
-
 	return (
 		<div className='h-full flex flex-col bg-white'>
-			{/* Header */}
 			<div className='border-b border-neutral-200 px-5 py-4'>
 				<div className='flex items-center gap-3 mb-3'>
 					<button
@@ -241,7 +202,6 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 					</div>
 				</div>
 
-				{/* Key Info */}
 				<div className='grid grid-cols-4 gap-4 text-[12px] p-3 bg-neutral-50 rounded border border-neutral-200'>
 					<div>
 						<div className='text-neutral-500 mb-0.5'>Total Experience</div>
@@ -269,7 +229,6 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 					</div>
 				</div>
 
-				{/* Quick Actions */}
 				<div className='mt-3 flex items-center gap-2'>
 					{candidate.stage !== "Joined" && candidate.stage !== "Rejected" && (
 						<Button
@@ -313,16 +272,9 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 							variant='outline'
 							size='sm'
 							className='h-8 text-[12px] gap-1.5 text-red-700 border-red-200 hover:bg-red-50 ml-auto'
-							onClick={() => {
-								const updatedCandidates = props.candidates.map((c) =>
-									c.id === candidate.id ? { ...c, stage: "Rejected" } : c,
-								);
-								props.setCandidates(updatedCandidates);
-								props.addActivityLog(
-									candidate.id,
-									"Candidate rejected",
-									"Admin",
-								);
+							onClick={async () => {
+								await updateCandidate({ stage: "Rejected" });
+								await appendActivityLog("Candidate rejected", "Admin");
 							}}
 						>
 							<X className='w-3.5 h-3.5' />
@@ -332,7 +284,6 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 				</div>
 			</div>
 
-			{/* Stage Tracker */}
 			{candidate.stage !== "Rejected" && (
 				<div className='px-5 py-4 border-b border-neutral-200 bg-neutral-50'>
 					<h4 className='text-[10px] font-semibold text-neutral-600 uppercase tracking-wide mb-3'>
@@ -388,7 +339,6 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 				</div>
 			)}
 
-			{/* Tabs */}
 			<div className='flex-1 overflow-hidden flex flex-col'>
 				<div className='border-b border-neutral-200 px-5'>
 					<div className='flex gap-1'>
@@ -424,6 +374,7 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 									Changes are saved automatically.
 								</p>
 							</div>
+
 							<div>
 								<h4 className='text-[11px] font-semibold text-neutral-600 mb-2'>
 									Contact Information
@@ -468,6 +419,7 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 											</span>
 										)}
 									</div>
+
 									<div className='flex items-center gap-2'>
 										<Phone className='w-3.5 h-3.5 text-neutral-400' />
 										{editingField === "phone" ? (
@@ -507,6 +459,7 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 											</span>
 										)}
 									</div>
+
 									<div className='flex items-center gap-2'>
 										<MapPin className='w-3.5 h-3.5 text-neutral-400' />
 										{editingField === "location" ? (
@@ -590,11 +543,12 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 												</Button>
 											</div>
 										) : (
-											<div className='text-neutral-900 font-medium'>
+											<div className='text-neutral-900 font-medium '>
 												{candidate.totalExperience}
 											</div>
 										)}
 									</div>
+
 									<div
 										className='p-3 bg-neutral-50 rounded border border-neutral-200 cursor-pointer hover:bg-neutral-100'
 										onClick={() =>
@@ -728,6 +682,7 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 											</div>
 										)}
 									</div>
+
 									<div
 										className='p-3 bg-neutral-50 rounded border border-neutral-200 cursor-pointer hover:bg-neutral-100'
 										onClick={() =>
@@ -786,16 +741,58 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 								</div>
 							)}
 
-							{candidate.education && (
-								<div>
-									<h4 className='text-[11px] font-semibold text-neutral-600 mb-2'>
-										Education
-									</h4>
-									<div className='text-[12px] text-neutral-900'>
-										{candidate.education}
-									</div>
+							<div>
+								<h4 className='text-[11px] font-semibold text-neutral-600 mb-2'>
+									Education
+								</h4>
+
+								<div
+									className='p-3 bg-neutral-50 rounded border border-neutral-200 cursor-pointer hover:bg-neutral-100'
+									onClick={() =>
+										startEditing("education", candidate.education || "")
+									}
+								>
+									<div className='text-neutral-500 mb-0.5'>Education</div>
+									{editingField === "education" ? (
+										<div
+											className='flex items-center gap-1.5'
+											onClick={(e) => e.stopPropagation()}
+										>
+											<Input
+												value={editValue}
+												onChange={(e) => setEditValue(e.target.value)}
+												className='h-7 text-[12px]'
+												autoFocus
+												onKeyDown={(e) => {
+													if (e.key === "Enter") saveField("education");
+													if (e.key === "Escape") cancelEditing();
+												}}
+											/>
+
+											<Button
+												size='sm'
+												className='h-7 w-7 p-0'
+												onClick={() => saveField("education")}
+											>
+												<Save className='w-3 h-3' />
+											</Button>
+
+											<Button
+												variant='outline'
+												size='sm'
+												className='h-7 w-7 p-0'
+												onClick={cancelEditing}
+											>
+												<X className='w-3 h-3' />
+											</Button>
+										</div>
+									) : (
+										<div className='text-neutral-900 font-medium'>
+											{candidate.education || "Click to add education"}
+										</div>
+									)}
 								</div>
-							)}
+							</div>
 
 							<div>
 								<h4 className='text-[11px] font-semibold text-neutral-600 mb-2'>
@@ -869,10 +866,7 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 											<Button
 												size='sm'
 												className='h-9 text-[13px] bg-neutral-900 hover:bg-neutral-800'
-												onClick={() => {
-													const url = `/resume-viewer?name=${encodeURIComponent(candidate.name)}&role=${encodeURIComponent(candidate.role)}`;
-													window.open(url, "_blank");
-												}}
+												onClick={onViewResume}
 											>
 												<File className='w-3.5 h-3.5 mr-1.5' />
 												View Full Resume
@@ -924,31 +918,19 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 
 					{detailTab === "screening" && (
 						<div className='max-w-3xl'>
-							<ScreeningTab
-								candidate={candidate}
-								candidates={props.candidates}
-								setCandidates={props.setCandidates}
-							/>
+							<ScreeningTab candidate={candidate} />
 						</div>
 					)}
 
 					{detailTab === "technical" && (
 						<div className='max-w-3xl'>
-							<TechnicalTab
-								candidate={candidate}
-								candidates={props.candidates}
-								setCandidates={props.setCandidates}
-							/>
+							<TechnicalTab candidate={candidate} />
 						</div>
 					)}
 
 					{detailTab === "offer" && (
 						<div className='max-w-3xl'>
-							<OfferTab
-								candidate={candidate}
-								candidates={props.candidates}
-								setCandidates={props.setCandidates}
-							/>
+							<OfferTab candidate={candidate} />
 						</div>
 					)}
 
@@ -993,7 +975,6 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 				</div>
 			</div>
 
-			{/* Move Stage Modal */}
 			{showMoveStageModal && (
 				<div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
 					<div className='bg-white rounded-lg p-6 w-full max-w-md'>
@@ -1044,7 +1025,6 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 				</div>
 			)}
 
-			{/* Assign Interviewer Modal */}
 			{showAssignModal && (
 				<div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
 					<div className='bg-white rounded-lg p-6 w-full max-w-md'>
@@ -1094,44 +1074,57 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 	);
 }
 
-// Screening Tab Component
 interface ScreeningTabProps {
 	candidate: Candidate;
-	candidates: Candidate[];
-	setCandidates: React.Dispatch<React.SetStateAction<Candidate[]>>;
 }
 
-function ScreeningTab({
-	candidate,
-	candidates,
-	setCandidates,
-}: ScreeningTabProps) {
+function ScreeningTab({ candidate }: ScreeningTabProps) {
+	const dispatch = useAppDispatch();
 	const [notes, setNotes] = useState("");
 	const currentUser =
 		typeof window !== "undefined"
 			? sessionStorage.getItem("userName") || "Admin User"
 			: "Admin User";
 
-	const handleSaveNotes = () => {
+	const handleSaveNotes = async () => {
 		if (!notes.trim()) return;
+
+		const stripHtml = (html: string) => {
+			if (typeof window === "undefined") return html;
+			const div = document.createElement("div");
+			div.innerHTML = html;
+			return (div.textContent || div.innerText || "").trim();
+		};
+
+		const truncateText = (text: string, maxLength = 120) => {
+			if (text.length <= maxLength) return text;
+			return `${text.slice(0, maxLength)}...`;
+		};
 
 		const newHistory = {
 			date: new Date().toISOString().split("T")[0],
-			notes: notes,
+			notes,
 			by: currentUser,
 		};
 
-		setCandidates(
-			candidates.map((c) => {
-				if (c.id === candidate.id) {
-					return {
-						...c,
-						screeningHistory: [...(c.screeningHistory || []), newHistory],
-					};
-				}
-				return c;
+		const plainNotes = truncateText(stripHtml(notes));
+
+		await dispatch(
+			updateCandidateThunk({
+				id: candidate.id,
+				data: {
+					screeningHistory: [...(candidate.screeningHistory || []), newHistory],
+					activityLog: [
+						{
+							date: newHistory.date,
+							action: `Screening note added: ${plainNotes}`,
+							by: currentUser,
+						},
+						...(candidate.activityLog || []),
+					],
+				},
 			}),
-		);
+		).unwrap();
 
 		setNotes("");
 	};
@@ -1190,18 +1183,12 @@ function ScreeningTab({
 	);
 }
 
-// Technical Tab Component
 interface TechnicalTabProps {
 	candidate: Candidate;
-	candidates: Candidate[];
-	setCandidates: React.Dispatch<React.SetStateAction<Candidate[]>>;
 }
 
-function TechnicalTab({
-	candidate,
-	candidates,
-	setCandidates,
-}: TechnicalTabProps) {
+function TechnicalTab({ candidate }: TechnicalTabProps) {
+	const dispatch = useAppDispatch();
 	const [notes, setNotes] = useState("");
 	const [rating, setRating] = useState<number>(0);
 	const currentUser =
@@ -1209,27 +1196,46 @@ function TechnicalTab({
 			? sessionStorage.getItem("userName") || "Admin User"
 			: "Admin User";
 
-	const handleSaveNotes = () => {
+	const handleSaveNotes = async () => {
 		if (!notes.trim()) return;
+
+		const stripHtml = (html: string) => {
+			if (typeof window === "undefined") return html;
+			const div = document.createElement("div");
+			div.innerHTML = html;
+			return (div.textContent || div.innerText || "").trim();
+		};
+
+		const truncateText = (text: string, maxLength = 120) => {
+			if (text.length <= maxLength) return text;
+			return `${text.slice(0, maxLength)}...`;
+		};
 
 		const newHistory = {
 			date: new Date().toISOString().split("T")[0],
-			notes: notes,
+			notes,
 			by: currentUser,
-			rating: rating,
+			rating,
 		};
 
-		setCandidates(
-			candidates.map((c) => {
-				if (c.id === candidate.id) {
-					return {
-						...c,
-						technicalHistory: [...(c.technicalHistory || []), newHistory],
-					};
-				}
-				return c;
+		const plainNotes = truncateText(stripHtml(notes));
+
+		await dispatch(
+			updateCandidateThunk({
+				id: candidate.id,
+				data: {
+					technicalHistory: [...(candidate.technicalHistory || []), newHistory],
+					activityLog: [
+						{
+							date: newHistory.date,
+							action: `Technical evaluation added${rating ? ` (${rating}/5)` : ""}: ${plainNotes}`,
+							by: currentUser,
+						},
+						...(candidate.activityLog || []),
+					],
+				},
 			}),
-		);
+		).unwrap();
 
 		setNotes("");
 		setRating(0);
@@ -1318,40 +1324,57 @@ function TechnicalTab({
 	);
 }
 
-// Offer Tab Component
 interface OfferTabProps {
 	candidate: Candidate;
-	candidates: Candidate[];
-	setCandidates: React.Dispatch<React.SetStateAction<Candidate[]>>;
 }
 
-function OfferTab({ candidate, candidates, setCandidates }: OfferTabProps) {
+function OfferTab({ candidate }: OfferTabProps) {
+	const dispatch = useAppDispatch();
 	const [notes, setNotes] = useState("");
 	const currentUser =
 		typeof window !== "undefined"
 			? sessionStorage.getItem("userName") || "Admin User"
 			: "Admin User";
 
-	const handleSaveNotes = () => {
+	const handleSaveNotes = async () => {
 		if (!notes.trim()) return;
+
+		const stripHtml = (html: string) => {
+			if (typeof window === "undefined") return html;
+			const div = document.createElement("div");
+			div.innerHTML = html;
+			return (div.textContent || div.innerText || "").trim();
+		};
+
+		const truncateText = (text: string, maxLength = 120) => {
+			if (text.length <= maxLength) return text;
+			return `${text.slice(0, maxLength)}...`;
+		};
 
 		const newHistory = {
 			date: new Date().toISOString().split("T")[0],
-			notes: notes,
+			notes,
 			by: currentUser,
 		};
 
-		setCandidates(
-			candidates.map((c) => {
-				if (c.id === candidate.id) {
-					return {
-						...c,
-						offerHistory: [...(c.offerHistory || []), newHistory],
-					};
-				}
-				return c;
+		const plainNotes = truncateText(stripHtml(notes));
+
+		await dispatch(
+			updateCandidateThunk({
+				id: candidate.id,
+				data: {
+					offerHistory: [...(candidate.offerHistory || []), newHistory],
+					activityLog: [
+						{
+							date: newHistory.date,
+							action: `Offer note added: ${plainNotes}`,
+							by: currentUser,
+						},
+						...(candidate.activityLog || []),
+					],
+				},
 			}),
-		);
+		).unwrap();
 
 		setNotes("");
 	};
@@ -1406,84 +1429,6 @@ function OfferTab({ candidate, candidates, setCandidates }: OfferTabProps) {
 					</div>
 				</div>
 			)}
-		</div>
-	);
-}
-
-// Resume Viewer Screen Component
-interface ResumeViewerScreenProps {
-	candidate: Candidate;
-	onBack: () => void;
-}
-
-function ResumeViewerScreen({ candidate, onBack }: ResumeViewerScreenProps) {
-	return (
-		<div className='h-full flex flex-col bg-neutral-100'>
-			{/* Header */}
-			<div className='bg-white border-b border-neutral-200 px-5 py-3 flex items-center justify-between'>
-				<div className='flex items-center gap-3'>
-					<button
-						onClick={onBack}
-						className='w-8 h-8 rounded border border-neutral-200 flex items-center justify-center hover:bg-neutral-50'
-					>
-						<ArrowLeft className='w-4 h-4' />
-					</button>
-					<div>
-						<h3 className='text-[14px] font-semibold text-neutral-900'>
-							Resume - {candidate.name}
-						</h3>
-						<p className='text-[11px] text-neutral-500'>
-							{candidate.resumeFileName}
-						</p>
-					</div>
-				</div>
-				<div className='flex items-center gap-2'>
-					{candidate.resumeUrl && (
-						<Button
-							variant='outline'
-							size='sm'
-							className='h-8 text-[12px] gap-1.5 border-neutral-200'
-							onClick={() => {
-								const link = document.createElement("a");
-								link.href = candidate.resumeUrl!;
-								link.download = candidate.resumeFileName || "resume.pdf";
-								link.click();
-							}}
-						>
-							<Download className='w-3.5 h-3.5' />
-							Download
-						</Button>
-					)}
-				</div>
-			</div>
-
-			{/* Resume Content */}
-			<div className='flex-1 overflow-auto p-5'>
-				{candidate.resumeUrl ? (
-					<div
-						className='max-w-4xl mx-auto bg-white rounded border border-neutral-200 shadow-sm'
-						style={{ height: "calc(100vh - 120px)" }}
-					>
-						<iframe
-							src={candidate.resumeUrl}
-							className='w-full h-full border-0 rounded'
-							title='Resume Preview'
-						/>
-					</div>
-				) : (
-					<div className='flex items-center justify-center h-full'>
-						<div className='text-center'>
-							<File className='w-16 h-16 text-neutral-300 mx-auto mb-3' />
-							<p className='text-[13px] text-neutral-600'>
-								Resume preview not available
-							</p>
-							<p className='text-[11px] text-neutral-500 mt-1'>
-								{candidate.resumeFileName || "NoFtag resume uploaded"}
-							</p>
-						</div>
-					</div>
-				)}
-			</div>
 		</div>
 	);
 }

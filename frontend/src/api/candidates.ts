@@ -1,40 +1,105 @@
-import { apiClient } from './client';
-import { API_ENDPOINTS } from '../config/api';
-import { Candidate } from '../slices/Recruitment/Candidates/candidatesSlice';
+import { apiClient } from "./client";
+import { API_ENDPOINTS } from "../config/api";
+import type { Candidate } from "../data/mockData";
+
+export interface CandidatesQueryParams {
+	search?: string;
+	role?: string;
+	stage?: string;
+	candidateType?: string;
+	page?: number;
+	limit?: number;
+}
+
+export interface CandidatesListResponse {
+	success: boolean;
+	message: string;
+	data: {
+		items: Candidate[];
+		pagination: {
+			page: number;
+			limit: number;
+			total: number;
+			totalPages: number;
+		};
+	};
+}
+
+export interface CandidateResponse {
+	success: boolean;
+	message: string;
+	data: Candidate;
+}
+
+const buildQueryString = (params?: CandidatesQueryParams) => {
+	if (!params) return "";
+
+	const query = new URLSearchParams();
+
+	if (params.search) query.append("search", params.search);
+	if (params.role) query.append("role", params.role);
+	if (params.stage) query.append("stage", params.stage);
+	if (params.candidateType) query.append("candidateType", params.candidateType);
+	if (params.page) query.append("page", String(params.page));
+	if (params.limit) query.append("limit", String(params.limit));
+
+	const queryString = query.toString();
+	return queryString ? `?${queryString}` : "";
+};
 
 export const candidatesApi = {
-  // Get all candidates
-  getAll: async (): Promise<Candidate[]> => {
-    return apiClient.get<Candidate[]>(API_ENDPOINTS.CANDIDATES);
-  },
+	getAll: async (
+		params?: CandidatesQueryParams,
+	): Promise<CandidatesListResponse> => {
+		const queryString = buildQueryString(params);
+		return apiClient.get<CandidatesListResponse>(
+			`${API_ENDPOINTS.CANDIDATES}${queryString}`,
+		);
+	},
 
-  // Get candidate by ID
-  getById: async (id: string): Promise<Candidate> => {
-    return apiClient.get<Candidate>(API_ENDPOINTS.CANDIDATE_BY_ID(id));
-  },
+	getById: async (id: string): Promise<CandidateResponse> => {
+		return apiClient.get<CandidateResponse>(API_ENDPOINTS.CANDIDATE_BY_ID(id));
+	},
 
-  // Create new candidate
-  create: async (data: Partial<Candidate>): Promise<Candidate> => {
-    return apiClient.post<Candidate>(API_ENDPOINTS.CANDIDATES, data);
-  },
+	create: async (data: Partial<Candidate>): Promise<CandidateResponse> => {
+		return apiClient.post<CandidateResponse>(API_ENDPOINTS.CANDIDATES, data);
+	},
 
-  // Update candidate
-  update: async (id: string, data: Partial<Candidate>): Promise<Candidate> => {
-    return apiClient.put<Candidate>(API_ENDPOINTS.CANDIDATE_BY_ID(id), data);
-  },
+	update: async (
+		id: string,
+		data: Partial<Candidate>,
+	): Promise<CandidateResponse> => {
+		return apiClient.put<CandidateResponse>(
+			API_ENDPOINTS.CANDIDATE_BY_ID(id),
+			data,
+		);
+	},
 
-  // Delete candidate
-  delete: async (id: string): Promise<void> => {
-    return apiClient.delete<void>(API_ENDPOINTS.CANDIDATE_BY_ID(id));
-  },
+	delete: async (
+		id: string,
+	): Promise<{ success: boolean; message?: string }> => {
+		return apiClient.delete<{ success: boolean; message?: string }>(
+			API_ENDPOINTS.CANDIDATE_BY_ID(id),
+		);
+	},
 
-  // Bulk update candidates
-  bulkUpdate: async (ids: string[], data: Partial<Candidate>): Promise<void> => {
-    return apiClient.post<void>(API_ENDPOINTS.BULK_UPDATE_CANDIDATES, { ids, data });
-  },
+	bulkUpdate: async (
+		ids: string[],
+		data: Partial<Candidate>,
+	): Promise<{ success: boolean; message?: string }> => {
+		return apiClient.post<{ success: boolean; message?: string }>(
+			API_ENDPOINTS.BULK_UPDATE_CANDIDATES,
+			{ ids, data },
+		);
+	},
 
-  // Update candidate stage
-  updateStage: async (id: string, stage: string): Promise<Candidate> => {
-    return apiClient.put<Candidate>(API_ENDPOINTS.CANDIDATE_BY_ID(id), { stage });
-  },
+	updateStage: async (
+		id: string,
+		stage: string,
+	): Promise<CandidateResponse> => {
+		return apiClient.put<CandidateResponse>(
+			API_ENDPOINTS.CANDIDATE_BY_ID(id),
+			{ stage },
+		);
+	},
 };

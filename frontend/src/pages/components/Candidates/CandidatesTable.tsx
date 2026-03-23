@@ -1,4 +1,13 @@
-import { ChevronDown, File, FileText, Calendar, GitBranch, UserPlus, XCircle, Save } from "lucide-react";
+import {
+	ChevronDown,
+	File,
+	FileText,
+	Calendar,
+	GitBranch,
+	UserPlus,
+	XCircle,
+	Save,
+} from "lucide-react";
 import { Candidate } from "../../../data/mockData";
 import { Button } from "../../../components/ui/button";
 import { Checkbox } from "../../../components/ui/checkbox";
@@ -26,12 +35,20 @@ interface CandidatesTableProps {
 	setSelectedCandidate: (candidate: Candidate) => void;
 	setViewState: (value: "list" | "detail" | "resume-viewer") => void;
 	setDetailTab: (value: string) => void;
-	updateCandidateField: (candidateId: string, field: string, value: any) => void;
+	updateCandidateField: (
+		candidateId: string,
+		field: string,
+		value: any,
+	) => Promise<void> | void;
 	editingCell: { id: string; field: string } | null;
 	editValue: string;
 	setEditValue: (value: string) => void;
-	startEditing: (candidateId: string, field: string, currentValue: string) => void;
-	saveEdit: (candidateId: string, field: string) => void;
+	startEditing: (
+		candidateId: string,
+		field: string,
+		currentValue: string,
+	) => void;
+	saveEdit: (candidateId: string, field: string) => Promise<void> | void;
 	cancelEdit: () => void;
 	getStageColor: (stage: string) => string;
 	activeDropdownRow: string | null;
