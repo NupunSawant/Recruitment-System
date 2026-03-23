@@ -59,6 +59,9 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 	const [showTagInput, setShowTagInput] = useState(false);
 	const [newTagValue, setNewTagValue] = useState("");
 
+	const [showSkillInput, setShowSkillInput] = useState(false);
+	const [newSkillValue, setNewSkillValue] = useState("");
+
 	const [editingField, setEditingField] = useState<string | null>(null);
 	const [editValue, setEditValue] = useState("");
 
@@ -143,6 +146,29 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 		await appendActivityLog(`Tag removed: ${tagToRemove}`, "Admin");
 	};
 
+	const addSkill = async () => {
+		if (!newSkillValue.trim()) return;
+
+		const currentSkills = candidate.skills || [];
+		if (currentSkills.includes(newSkillValue.trim())) return;
+
+		await updateCandidate({
+			skills: [...currentSkills, newSkillValue.trim()],
+		});
+		await appendActivityLog(`Skill added: ${newSkillValue.trim()}`, "Admin");
+		setNewSkillValue("");
+		setShowSkillInput(false);
+	};
+
+	const removeSkill = async (skillToRemove: string) => {
+		await updateCandidate({
+			skills: (candidate.skills || []).filter(
+				(skill) => skill !== skillToRemove,
+			),
+		});
+		await appendActivityLog(`Skill removed: ${skillToRemove}`, "Admin");
+	};
+
 	const handleReplaceResume = async (
 		e: React.ChangeEvent<HTMLInputElement>,
 	) => {
@@ -187,7 +213,7 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 								candidate.stage === "New"
 									? "bg-neutral-100 text-neutral-700 border-neutral-200"
 									: candidate.stage === "Screening"
-										? "bg-blue-50 text-blue-700 border-blue-200"
+										? "bg-grey-50 text-grey-700 border-grey-200"
 										: candidate.stage === "Technical"
 											? "bg-amber-50 text-amber-700 border-amber-200"
 											: candidate.stage === "Offer"
@@ -289,33 +315,44 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 					<h4 className='text-[10px] font-semibold text-neutral-600 uppercase tracking-wide mb-3'>
 						Stage Progression
 					</h4>
-					<div className='flex items-center'>
+					<div className='flex items-center gap-0'>
 						{stages.map((stage, index) => {
 							const isActive = index <= currentStageIndex;
 							const isCurrent = stage === candidate.stage;
-							const isCompleted = index < currentStageIndex;
+							const isJoined = candidate.stage === "Joined";
+
+							// Mark all stages before "Joined" as completed (green line)
+							const isCompleted =
+								index < currentStageIndex || (isCurrent && isJoined);
+
+							// For progress line: If the stage is completed or if it's past the current stage
+							const nextIsCompleted =
+								index < currentStageIndex ||
+								(isJoined && index < currentStageIndex);
 
 							return (
-								<div key={stage} className='flex items-center flex-1'>
-									<div className='flex flex-col items-center gap-1.5 flex-1'>
+								<div key={stage} className='flex items-center flex-1 min-w-0'>
+									<div className='flex flex-col items-center gap-1.5'>
 										<div
-											className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold border-2 transition-all ${
+											className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold border-2 transition-all flex-shrink-0 ${
 												isCompleted
-													? "bg-emerald-500 border-emerald-500 text-white"
+													? "bg-emerald-500 border-emerald-500 text-white" // Completed stages will be green
 													: isCurrent
-														? "bg-neutral-900 border-neutral-900 text-white"
-														: "bg-white border-neutral-200 text-neutral-400"
+														? "bg-neutral-900 border-neutral-900 text-white" // Current stage is active
+														: "bg-white border-neutral-200 text-neutral-400" // Default color for stages not started
 											}`}
 										>
 											{isCompleted ? (
-												<CheckCircle className='w-4 h-4' />
+												<CheckCircle className='w-4 h-4' /> // Show checkmark if completed
 											) : (
-												index + 1
+												index + 1 // Stage number if not completed
 											)}
 										</div>
 										<span
-											className={`text-[10px] font-medium text-center ${
-												isCurrent ? "text-neutral-900" : "text-neutral-500"
+											className={`text-[10px] font-medium text-center whitespace-nowrap ${
+												isCurrent && !isCompleted
+													? "text-neutral-900"
+													: "text-neutral-500"
 											}`}
 										>
 											{stage}
@@ -323,12 +360,12 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 									</div>
 									{index < stages.length - 1 && (
 										<div
-											className={`h-0.5 w-full -mt-4 ${
-												isCompleted
-													? "bg-emerald-500"
+											className={`h-0.5 flex-1 ${
+												nextIsCompleted
+													? "bg-emerald-500" // Completed stages will have a green line
 													: isActive
-														? "bg-neutral-200"
-														: "bg-neutral-100"
+														? "bg-neutral-200" // Active stages will have a neutral line
+														: "bg-neutral-100" // Future stages will have a light gray line
 											}`}
 										/>
 									)}
@@ -368,8 +405,8 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 				<div className='flex-1 overflow-y-auto p-5'>
 					{detailTab === "overview" && (
 						<div className='space-y-4 max-w-2xl'>
-							<div className='p-3 bg-blue-50 rounded border border-blue-200'>
-								<p className='text-[11px] text-blue-900'>
+							<div className='p-3 bg-grey-50 rounded border border-grey-200'>
+								<p className='text-[11px] text-grey-900'>
 									<strong>Tip:</strong> Click on any field to edit it inline.
 									Changes are saved automatically.
 								</p>
@@ -728,15 +765,95 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 									<h4 className='text-[11px] font-semibold text-neutral-600 mb-2'>
 										Skills
 									</h4>
-									<div className='flex flex-wrap gap-1.5'>
+									<div className='flex flex-wrap gap-1.5 items-center'>
 										{candidate.skills.map((skill) => (
 											<span
 												key={skill}
-												className='px-2 py-0.5 bg-neutral-100 text-neutral-700 text-[11px] rounded border border-neutral-200'
+												className='px-2 py-1 bg-grey-50  text-neutral-600 text-[11px] rounded border border-grey-200 flex items-center gap-1.5 group'
 											>
 												{skill}
+												<button
+													onClick={() => removeSkill(skill)}
+													className='opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity'
+												>
+													<X className='w-3 h-3' />
+												</button>
 											</span>
 										))}
+										{showSkillInput ? (
+											<div className='flex items-center gap-1'>
+												<Input
+													value={newSkillValue}
+													onChange={(e) => setNewSkillValue(e.target.value)}
+													className='h-7 text-[11px] w-32'
+													placeholder='Add skill'
+													autoFocus
+													onKeyDown={(e) => {
+														if (e.key === "Enter") addSkill();
+														if (e.key === "Escape") {
+															setShowSkillInput(false);
+															setNewSkillValue("");
+														}
+													}}
+												/>
+												<Button
+													size='sm'
+													className='h-7 w-7 p-0'
+													onClick={addSkill}
+												>
+													<Plus className='w-3.5 h-3.5' />
+												</Button>
+											</div>
+										) : (
+											<button
+												onClick={() => setShowSkillInput(true)}
+												className='px-2 py-1 text-[11px] text-neutral-500 hover:text-grey-700 border border-dashed border-grey-300 rounded hover:border-grey-400 '
+											>
+												+ Add Skill
+											</button>
+										)}
+									</div>
+								</div>
+							)}
+
+							{(!candidate.skills || candidate.skills.length === 0) && (
+								<div>
+									<h4 className='text-[11px] font-semibold text-neutral-600 mb-2'>
+										Skills
+									</h4>
+									<div className='flex flex-wrap gap-1.5 items-center'>
+										{showSkillInput ? (
+											<div className='flex items-center gap-1'>
+												<Input
+													value={newSkillValue}
+													onChange={(e) => setNewSkillValue(e.target.value)}
+													className='h-7 text-[11px] w-32'
+													placeholder='Add skill'
+													autoFocus
+													onKeyDown={(e) => {
+														if (e.key === "Enter") addSkill();
+														if (e.key === "Escape") {
+															setShowSkillInput(false);
+															setNewSkillValue("");
+														}
+													}}
+												/>
+												<Button
+													size='sm'
+													className='h-7 w-7 p-0'
+													onClick={addSkill}
+												>
+													<Plus className='w-3.5 h-3.5' />
+												</Button>
+											</div>
+										) : (
+											<button
+												onClick={() => setShowSkillInput(true)}
+												className='px-2 py-1 text-[11px] text-neutral-500	 hover:text-grey-700 border border-dashed border-grey-300 rounded hover:border-grey-400 transition-colors'
+											>
+												+ Add Skill
+											</button>
+										)}
 									</div>
 								</div>
 							)}
@@ -855,7 +972,7 @@ export function CandidateDetailView(props: CandidateDetailViewProps) {
 							<div className='p-6 bg-neutral-50 rounded border border-neutral-200 text-center'>
 								{candidate.resumeFileName ? (
 									<>
-										<File className='w-16 h-16 text-blue-600 mx-auto mb-3' />
+										<File className='w-16 h-16 text-grey-600 mx-auto mb-3' />
 										<p className='text-[14px] text-neutral-900 font-medium mb-1'>
 											{candidate.resumeFileName}
 										</p>
