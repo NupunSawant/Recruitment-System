@@ -1,15 +1,19 @@
 import { Navigate } from "react-router";
-import { useAuthContext } from "../context/AuthContext";
+import { useSelector } from "react-redux";
+import { RootState } from "../store"; // Import RootState to type the selector
 
 interface ProtectedRouteProps {
 	children: React.ReactNode;
-	allowedRole?: "admin" | "interviewer";
+	allowedRole?: "admin" | "interviewer"; // Optional, can handle multiple roles
 }
 
 export function ProtectedRoute({ children, allowedRole }: ProtectedRouteProps) {
-	const { isAuthenticated, isAuthLoading, userRole } = useAuthContext();
+	// Access the `auth` state from Redux store and type the state properly
+	const { isAuthenticated, isLoading, userRole } = useSelector(
+		(state: RootState) => state.auth, // Access auth state using RootState
+	);
 
-	if (isAuthLoading) {
+	if (isLoading) {
 		return (
 			<div className='min-h-screen flex items-center justify-center text-sm text-muted-foreground'>
 				Loading...
@@ -25,5 +29,6 @@ export function ProtectedRoute({ children, allowedRole }: ProtectedRouteProps) {
 		return <Navigate to='/login' replace />;
 	}
 
+	// If the user is authenticated and role matches (or no role required), render the children
 	return <>{children}</>;
 }

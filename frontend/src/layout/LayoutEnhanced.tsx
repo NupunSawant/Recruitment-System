@@ -9,52 +9,34 @@ import {
 	LogOut,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { logout } from "../slices/Authentication/authSlice"; // Import the logout action
+import { RootState } from "../store"; // Import RootState for accessing Redux state
 
 export function LayoutEnhanced() {
 	const location = useLocation();
 	const navigate = useNavigate();
+	const dispatch = useDispatch(); // Use the Redux dispatch
 
-	// ✅ USER STATE
-	const [user, setUser] = useState({
+	// ✅ Fetch user from Redux store (instead of local state)
+	const { user } = useSelector((state: RootState) => state.auth);
+
+	// If no user, display placeholder
+	const [userData, setUserData] = useState({
 		name: "Loading...",
 		email: "",
 		role: "",
 	});
 
-	// ✅ FETCH CURRENT USER
 	useEffect(() => {
-		const fetchUser = async () => {
-			try {
-				const res = await fetch("/api/auth/me", {
-					headers: {
-						Authorization: `Bearer ${sessionStorage.getItem("token") || ""}`,
-					},
-				});
-
-				if (!res.ok) throw new Error("Failed");
-
-				const data = await res.json();
-
-				// ✅ CORRECT PARSING
-				const userData = data?.data?.user;
-
-				setUser({
-					name: userData?.name || "Unknown User",
-					email: userData?.email || "",
-					role: userData?.role || "",
-				});
-			} catch (err) {
-				console.error("Failed to fetch user", err);
-				setUser({
-					name: "Unknown User",
-					email: "",
-					role: "",
-				});
-			}
-		};
-
-		fetchUser();
-	}, []);
+		if (user) {
+			setUserData({
+				name: user?.name || "Unknown User",
+				email: user?.email || "",
+				role: user?.role || "",
+			});
+		}
+	}, [user]);
 
 	const navItems = [
 		{ path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -74,9 +56,16 @@ export function LayoutEnhanced() {
 	};
 
 	const handleLogout = () => {
+		// Dispatch logout action to clear Redux state
+		dispatch(logout());
+
+		// Clear sessionStorage
 		sessionStorage.removeItem("hrms_authenticated");
 		sessionStorage.removeItem("hrms_user_role");
 		sessionStorage.removeItem("token");
+		sessionStorage.removeItem("hrms_user");
+
+		// Navigate to login page
 		navigate("/login");
 	};
 
@@ -125,8 +114,9 @@ export function LayoutEnhanced() {
 					<div className='flex items-center gap-2 mb-2'>
 						{/* Avatar */}
 						<div className='w-8 h-8 bg-neutral-200 rounded-full flex items-center justify-center text-xs font-medium'>
-							{user.name !== "Loading..." && user.name !== "Unknown User"
-								? user.name.charAt(0).toUpperCase()
+							{userData.name !== "Loading..." &&
+							userData.name !== "Unknown User"
+								? userData.name.charAt(0).toUpperCase()
 								: "?"}
 						</div>
 
@@ -137,18 +127,18 @@ export function LayoutEnhanced() {
 
 							{/* ✅ Name */}
 							<div className='text-[13px] font-medium text-foreground truncate'>
-								{user.name}
+								{userData.name}
 							</div>
 
 							{/* ✅ Email */}
 							<div className='text-[11px] text-muted-foreground truncate'>
-								{user.email}
+								{userData.email}
 							</div>
 
 							{/* ✅ Role badge */}
-							{user.role && (
+							{userData.role && (
 								<div className='mt-1 inline-block px-2 py-0.5 text-[10px] bg-neutral-100 text-neutral-700 rounded border border-neutral-200'>
-									{user.role}
+									{userData.role}
 								</div>
 							)}
 						</div>
