@@ -4,15 +4,16 @@ import { RootState } from "../store"; // Import RootState to type the selector
 
 interface ProtectedRouteProps {
 	children: React.ReactNode;
-	allowedRole?: "admin" | "interviewer"; // Optional, can handle multiple roles
+	allowedRole?: "admin" | "interviewer";
 }
 
 export function ProtectedRoute({ children, allowedRole }: ProtectedRouteProps) {
-	// Access the `auth` state from Redux store and type the state properly
+	// Access the `auth` state from Redux store
 	const { isAuthenticated, isLoading, userRole } = useSelector(
-		(state: RootState) => state.auth, // Access auth state using RootState
+		(state: RootState) => state.auth,
 	);
 
+	// Show loading indicator while fetching auth status
 	if (isLoading) {
 		return (
 			<div className='min-h-screen flex items-center justify-center text-sm text-muted-foreground'>
@@ -21,14 +22,16 @@ export function ProtectedRoute({ children, allowedRole }: ProtectedRouteProps) {
 		);
 	}
 
+	// Redirect if not authenticated
 	if (!isAuthenticated) {
 		return <Navigate to='/login' replace />;
 	}
 
+	// Redirect if user doesn't have the required role
 	if (allowedRole && userRole !== allowedRole) {
 		return <Navigate to='/login' replace />;
 	}
 
-	// If the user is authenticated and role matches (or no role required), render the children
+	// Otherwise, render the protected route
 	return <>{children}</>;
 }

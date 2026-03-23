@@ -33,9 +33,8 @@ export function Login() {
 		dispatch(loginThunk({ email, password, role, rememberMe })); // Dispatch the login thunk
 	};
 
-	// Effect to handle the redirect after successful login
+	// Redirect to dashboard/interviewer based on the user's role once authenticated
 	useEffect(() => {
-		// Avoid redirecting if still loading or waiting for user info
 		if (isAuthenticated) {
 			if (role === "admin") {
 				navigate("/dashboard"); // Redirect to dashboard if admin
@@ -44,20 +43,6 @@ export function Login() {
 			}
 		}
 	}, [isAuthenticated, role, navigate]); // Only trigger when isAuthenticated or role changes
-
-	// Ensure proper redirection on page load if already authenticated (from sessionStorage)
-	useEffect(() => {
-		const storedUser = sessionStorage.getItem("hrms_user");
-		const storedToken = sessionStorage.getItem("hrms_access_token");
-
-		if (storedUser && storedToken) {
-			if (role === "admin") {
-				navigate("/dashboard");
-			} else {
-				navigate("/interviewer");
-			}
-		}
-	}, [role, navigate]);
 
 	return (
 		<div className='min-h-screen bg-muted flex items-center justify-center p-4'>
