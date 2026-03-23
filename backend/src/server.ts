@@ -8,7 +8,7 @@ import { ZodError } from "zod";
 
 import { env } from "./config/env";
 import { connectDB } from "./config/db";
-import authRoutes from "./routes/Authentication/authRoutes";
+import router from "./routes";
 
 const app = express();
 
@@ -17,6 +17,7 @@ app.use(cookieParser());
 app.use(helmet());
 app.use(compression());
 app.use(morgan("dev"));
+app.use("/api", router);
 
 app.use(
 	cors({
@@ -39,7 +40,7 @@ app.get("/health", (_req, res) => {
 	});
 });
 
-app.use("/api/auth", authRoutes);
+
 
 app.use((_req, res) => {
 	res.status(404).json({
